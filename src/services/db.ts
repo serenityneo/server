@@ -19,37 +19,37 @@ export function getPool(): DbPool | null {
   const sslmode = process.env.PGSSLMODE || '';
   const urlHasSsl = /sslmode=(require|prefer)/i.test(url);
   const ssl = (urlHasSsl || /require|prefer/i.test(sslmode)) ? { rejectUnauthorized: false } : undefined;
-  
+
   // ✅ OPTIMIZED: Connection pool configuration for production stability
   pool = factory({
     connectionString: url,
     ssl,
-    
+
     // Connection Pool Limits
     min: 2,                      // Keep 2 connections alive always
     max: 10,                     // Max 10 concurrent connections
     idleTimeoutMillis: 0,        // ✅ FIX: Never close idle connections (was 30000)
     connectionTimeoutMillis: 5000, // Wait max 5s for available connection
-    
+
     // Query Timeouts (prevent hung queries)
     statement_timeout: 10000,    // Kill queries taking > 10s
     query_timeout: 10000,        // Application-level timeout
-    
+
     // ✅ FIX: Enhanced keep-alive to prevent connection termination
     keepAlive: true,
     keepAliveInitialDelayMillis: 0, // Start keep-alive immediately
-    
+
     // ✅ FIX: Handle connection errors gracefully
     allowExitOnIdle: false,      // Don't allow pool to exit when idle
   });
-  
+
   // ✅ FIX: Add error handler to prevent crash on connection termination
   (pool as any).on('error', (err: Error) => {
     console.error('[PostgreSQL] Pool error - connection will auto-reconnect:', err.message);
   });
-  
+
   console.log('[PostgreSQL] Connection pool initialized (min: 2, max: 10, keepAlive: enabled)');
-  
+
   return pool;
 }
 
@@ -123,3 +123,9 @@ export async function upsertKycDraftHashes(customerId: number, kycStep: string, 
     [customerId, kycStep, JSON.stringify(hashes)]
   );
 }
+
+// Export drizzle instance for ORM usage
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from '../db/schema';
+
+export const db = drizzle(getPool() as any, { schema });
