@@ -5,6 +5,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
 import underPressure from '@fastify/under-pressure';
+import rateLimit from '@fastify/rate-limit';
 import { registerSwagger } from './plugins/swagger';
 import { registerSecurity } from './plugins/security';
 import { registerPerformanceLogger } from './plugins/performance-logger';
@@ -37,13 +38,56 @@ const buildApp = () => {
 
   // Core plugins
   app.register(cors, {
-    origin: true, // Allow all origins in development
-    credentials: true // CRITICAL: Allow cookies for authentication
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        'https://neo-srnt.com',
+        'https://www.neo-srnt.com',
+        process.env.FRONTEND_URL,
+        // Allow localhost in development
+        ...(process.env.NODE_ENV !== 'production' ? [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://127.0.0.1:3000'
+        ] : [])
+      ].filter(Boolean);
+
+      // Allow requests with no origin (mobile apps, Postman, curl)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        app.log.warn({ origin }, 'CORS: Blocked unauthorized origin');
+        callback(new Error('Not allowed by CORS'), false);
+      }
+    },
+    credentials: true, // CRITICAL: Allow cookies for authentication
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    exposedHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
   });
   app.register(helmet);
   app.register(cookie); // Cookie parsing middleware for admin authentication
   app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
   app.register(underPressure, { maxEventLoopDelay: 1000, maxHeapUsedBytes: 200 * 1024 * 1024 });
+
+  // Global rate limiting (DDoS protection)
+  app.register(rateLimit, {
+    global: true,
+    max: 100, // 100 requests
+    timeWindow: '1 minute',
+    cache: 10000,
+    allowList: ['127.0.0.1', '::1'], // Whitelist localhost
+    errorResponseBuilder: (req, context) => ({
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded. Please try again in ${Math.ceil(context.after / 1000)} seconds.`,
+      statusCode: 429,
+      retryAfter: Math.ceil(context.after / 1000)
+    })
+  });
 
   // Docs & security
   registerSwagger(app);
