@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { resendEmailService } from '../services/resend-email.service';
 
 interface SendOtpEmailBody {
@@ -8,7 +8,7 @@ interface SendOtpEmailBody {
 }
 
 export async function otpEmailRoutes(app: FastifyInstance) {
-    app.post<{ Body: SendOtpEmailBody }>('/otp/send-email', {
+    app.post('/otp/send-email', {
         schema: {
             body: {
                 type: 'object',
@@ -20,8 +20,8 @@ export async function otpEmailRoutes(app: FastifyInstance) {
                 }
             }
         }
-    }, async (request, reply) => {
-        const { email, code, purpose } = request.body;
+    }, async (request: FastifyRequest, reply) => {
+        const { email, code, purpose } = request.body as SendOtpEmailBody;
 
         // Security: Validate code format (numeric, length) to prevent injection
         if (!/^\d{4,8}$/.test(code)) {
@@ -38,13 +38,14 @@ export async function otpEmailRoutes(app: FastifyInstance) {
     });
 
     // Login Alert Route (Secure - Internal/Trusted calls only)
-    app.post<{ Body: { email: string, details: { ip: string, device: string, time: string } } }>('/security/alert-login', {
+    app.post('/security/alert-login', {
         schema: {
             body: {
                 type: 'object',
                 required: ['email', 'details'],
                 properties: {
                     email: { type: 'string', format: 'email' },
+                    clientName: { type: 'string' },
                     details: {
                         type: 'object',
                         required: ['ip', 'device', 'time'],
@@ -57,11 +58,17 @@ export async function otpEmailRoutes(app: FastifyInstance) {
                 }
             }
         }
-    }, async (request, reply) => {
-        const { email, details } = request.body;
+    }, async (request: FastifyRequest, reply) => {
+        const { email, clientName, details } = request.body as { email: string, clientName?: string, details: { ip: string, device: string, time: string } };
 
         // Non-blocking send
-        resendEmailService.sendLoginAlert(email, details).catch(err => {
+        resendEmailService.sendLoginAlert(email, clientName || 'Client', {
+            ...details,
+            browser: 'Unknown',
+            os: 'Unknown',
+            provider: 'Unknown',
+            location: 'Unknown'
+        }).catch(err => {
             request.log.error({ err }, 'Failed to send login alert');
         });
 

@@ -814,6 +814,27 @@ export const fraudAlerts = pgTable("fraud_alerts", {
     }).onUpdate("cascade").onDelete("set null"),
 ]);
 
+export const jobApplications = pgTable("job_applications", {
+    id: serial().primaryKey().notNull(),
+    fullName: text("full_name").notNull(),
+    email: text().notNull(),
+    phone: text().notNull(),
+    portfolio: text(),
+    coverLetter: text("cover_letter").notNull(),
+    jobTitle: text("job_title").notNull(),
+    cvUrl: text("cv_url").notNull(), // EdgeStore URL
+    status: text().default('PENDING').notNull(), // PENDING, REVIEWED, REJECTED, HIRED
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    deviceInfo: jsonb("device_info"), // Captured from frontend
+    createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+    index("job_applications_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
+    index("job_applications_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+    index("job_applications_created_at_idx").using("btree", table.createdAt.desc().nullsLast().op("timestamp_ops")),
+]);
+
 export const customerBehaviorProfiles = pgTable("customer_behavior_profiles", {
     id: serial().primaryKey().notNull(),
     customerId: integer("customer_id").notNull(),

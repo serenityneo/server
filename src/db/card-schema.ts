@@ -11,7 +11,7 @@
  * 6. Customer picks up card (delivered)
  */
 
-import { pgTable, serial, text, varchar, numeric, boolean, timestamp, integer, index, foreignKey, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, numeric, boolean, timestamp, integer, index, foreignKey, pgEnum, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { customers } from "./schema";
 
@@ -32,7 +32,7 @@ import { customers } from "./schema";
  */
 export const cardRequestStatus = pgEnum("CardRequestStatus", [
   'PENDING',
-  'PAYMENT_PENDING', 
+  'PAYMENT_PENDING',
   'PAID',
   'PROCESSING',
   'READY',
@@ -71,27 +71,27 @@ export const mobileMoneyProvider = pgEnum("MobileMoneyProvider", [
  */
 export const cardTypes = pgTable("card_types", {
   id: serial("id").primaryKey().notNull(),
-  
+
   // Card Type Identification
   code: varchar("code", { length: 20 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
-  
+
   // Pricing
   priceUsd: numeric("price_usd", { precision: 10, scale: 2 }).notNull(),
   priceCdf: numeric("price_cdf", { precision: 15, scale: 2 }).notNull(),
-  
+
   // Design
   imageUrl: text("image_url"),
   cardColor: varchar("card_color", { length: 20 }).default('#5C4033'),
-  
+
   // Features
   features: text("features"), // JSON array of features
-  
+
   // Status
   isActive: boolean("is_active").default(true).notNull(),
   displayOrder: integer("display_order").default(0).notNull(),
-  
+
   // Timestamps
   createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -109,37 +109,44 @@ export const cardTypes = pgTable("card_types", {
  */
 export const cardRequests = pgTable("card_requests", {
   id: serial("id").primaryKey().notNull(),
-  
+
   // References
   customerId: integer("customer_id").notNull(),
   cardTypeId: integer("card_type_id").notNull(),
-  
+
+  // Partner Request Information
+  isPartnerRequest: boolean("is_partner_request").default(false).notNull(),
+  requestedByPartnerId: integer("requested_by_partner_id"),
+  partnerIpAddress: varchar("partner_ip_address", { length: 45 }),
+  partnerUserAgent: text("partner_user_agent"),
+  partnerDeviceInfo: jsonb("partner_device_info"),
+
   // Request Reference
   requestNumber: varchar("request_number", { length: 30 }).notNull().unique(),
-  
+
   // Payment Information
   paymentMethod: cardPaymentMethod("payment_method").notNull(),
   mobileMoneyProvider: mobileMoneyProvider("mobile_money_provider"),
   mobileMoneyNumber: varchar("mobile_money_number", { length: 20 }),
   paymentReference: varchar("payment_reference", { length: 100 }),
-  
+
   // Amount
   amountUsd: numeric("amount_usd", { precision: 10, scale: 2 }).notNull(),
   amountCdf: numeric("amount_cdf", { precision: 15, scale: 2 }).notNull(),
   currencyPaid: varchar("currency_paid", { length: 3 }).default('USD'),
-  
+
   // Card Details (filled after approval)
   cardNumber: varchar("card_number", { length: 20 }),
   cardExpiryDate: varchar("card_expiry_date", { length: 7 }), // MM/YYYY
-  
+
   // Status
   status: cardRequestStatus("status").default('PENDING').notNull(),
-  
+
   // Admin Actions
   reviewedById: integer("reviewed_by_id"),
   reviewNote: text("review_note"),
   rejectionReason: text("rejection_reason"),
-  
+
   // Timestamps
   requestedAt: timestamp("requested_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
   paidAt: timestamp("paid_at", { precision: 3, mode: 'string' }),
@@ -172,31 +179,31 @@ export const cardRequests = pgTable("card_requests", {
  */
 export const cardPayments = pgTable("card_payments", {
   id: serial("id").primaryKey().notNull(),
-  
+
   // References
   cardRequestId: integer("card_request_id").notNull(),
   customerId: integer("customer_id").notNull(),
-  
+
   // Payment Details
   paymentMethod: cardPaymentMethod("payment_method").notNull(),
   mobileMoneyProvider: mobileMoneyProvider("mobile_money_provider"),
-  
+
   // Amounts
   amountUsd: numeric("amount_usd", { precision: 10, scale: 2 }).notNull(),
   amountCdf: numeric("amount_cdf", { precision: 15, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 3 }).default('USD'),
-  
+
   // Transaction Reference
   transactionReference: varchar("transaction_reference", { length: 100 }),
   externalReference: varchar("external_reference", { length: 100 }), // Mobile Money reference
-  
+
   // Status
   status: varchar("status", { length: 20 }).default('PENDING').notNull(), // PENDING, COMPLETED, FAILED, REFUNDED
-  
+
   // S01 Deduction Details
   s01AccountId: integer("s01_account_id"),
   s01TransactionId: integer("s01_transaction_id"),
-  
+
   // Timestamps
   createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
   completedAt: timestamp("completed_at", { precision: 3, mode: 'string' }),

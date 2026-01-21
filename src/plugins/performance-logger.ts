@@ -37,17 +37,17 @@ const FLUSH_INTERVAL_MS = 10000; // Or every 10 seconds
 
 async function flushLogs() {
   if (logBuffer.length === 0) return;
-  
+
   const logsToInsert = [...logBuffer];
   logBuffer = [];
-  
+
   try {
     const pool = getPool();
     if (!pool) {
       console.warn('[PerformanceLogger] Database pool not available - skipping flush');
       return;
     }
-    
+
     // ✅ FIX: Verify pool connection before inserting
     try {
       await pool.query('SELECT 1'); // Quick health check
@@ -55,8 +55,8 @@ async function flushLogs() {
       console.warn('[PerformanceLogger] Pool health check failed - skipping flush:', healthError.message);
       return;
     }
-    
-    const db = drizzle(pool);
+
+    const db = drizzle(pool as any);
     await db.insert(requestLogs).values(logsToInsert as any);
     console.debug(`[PerformanceLogger] Flushed ${logsToInsert.length} request logs`);
   } catch (error: any) {
@@ -88,21 +88,21 @@ function extractActionType(endpoint: string, method: string): string | undefined
     '/api/v1/credit/apply': 'credit_apply',
     '/api/v1/credit/repay': 'credit_repay',
   };
-  
+
   // Exact match
   if (actionMap[endpoint]) return actionMap[endpoint];
-  
+
   // Partial match
   for (const [pattern, action] of Object.entries(actionMap)) {
     if (endpoint.includes(pattern)) return action;
   }
-  
+
   // Extract from endpoint path
   const segments = endpoint.split('/').filter(Boolean);
   if (segments.length >= 3) {
     return `${segments[segments.length - 1]}_${method.toLowerCase()}`;
   }
-  
+
   return undefined;
 }
 
@@ -111,17 +111,17 @@ function extractCustomerId(request: FastifyRequest): number | undefined {
   const user = (request as any).user;
   if (user?.customer_id) return Number(user.customer_id);
   if (user?.id) return Number(user.id);
-  
+
   // Check request body
   const body = request.body as any;
   if (body?.customerId) return Number(body.customerId);
   if (body?.customer_id) return Number(body.customer_id);
-  
+
   // Check query params
   const query = request.query as any;
   if (query?.customerId) return Number(query.customerId);
   if (query?.customer_id) return Number(query.customer_id);
-  
+
   return undefined;
 }
 
@@ -135,32 +135,32 @@ export function registerPerformanceLogger(app: FastifyInstance) {
   app.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
     const startTime = (request as any).startTime;
     if (!startTime) return;
-    
+
     const duration = Date.now() - startTime;
-    
+
     // Sampling: skip some requests for high-traffic scenarios
     if (Math.random() > SAMPLE_RATE) return;
-    
+
     // ✅ FIX: Use request.routeOptions.url instead of deprecated routerPath
     const endpoint = request.routeOptions?.url || request.url;
     const method = request.method;
     const statusCode = reply.statusCode;
-    
+
     // Skip health checks and static assets
-    if (endpoint.includes('/health') || 
-        endpoint.includes('/documentation') || 
-        endpoint.includes('/swagger') ||
-        endpoint.includes('/_next/')) {
+    if (endpoint.includes('/health') ||
+      endpoint.includes('/documentation') ||
+      endpoint.includes('/swagger') ||
+      endpoint.includes('/_next/')) {
       return;
     }
-    
+
     const customerId = extractCustomerId(request);
     const actionType = extractActionType(endpoint, method);
-    const ipAddress = (request.headers['x-forwarded-for'] as string)?.split(',')[0] || 
-                      request.ip || 
-                      'unknown';
+    const ipAddress = (request.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      request.ip ||
+      'unknown';
     const userAgent = request.headers['user-agent'] || undefined;
-    
+
     // Sanitize request body (remove sensitive data)
     let sanitizedBody: any = undefined;
     if (request.body && typeof request.body === 'object') {
@@ -171,7 +171,7 @@ export function registerPerformanceLogger(app: FastifyInstance) {
       delete body.secret;
       sanitizedBody = Object.keys(body).length > 0 ? body : undefined;
     }
-    
+
     const logEntry: LogEntry = {
       id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       endpoint,
@@ -189,7 +189,7 @@ export function registerPerformanceLogger(app: FastifyInstance) {
       createdAt: new Date(),
       date: new Date(),
     };
-    
+
     // Log slow queries immediately
     if (duration > SLOW_QUERY_THRESHOLD_MS) {
       app.log.warn({
@@ -201,10 +201,10 @@ export function registerPerformanceLogger(app: FastifyInstance) {
         actionType,
       }, `[PerformanceLogger] SLOW QUERY detected (${duration}ms > ${SLOW_QUERY_THRESHOLD_MS}ms)`);
     }
-    
+
     // Add to buffer
     logBuffer.push(logEntry);
-    
+
     // Flush if buffer is full
     if (logBuffer.length >= BUFFER_SIZE) {
       setImmediate(() => flushLogs());

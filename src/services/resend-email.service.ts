@@ -318,6 +318,62 @@ export class ResendEmailService {
       type: 'ALERT'
     });
   }
+  /**
+   * Send Job Application to Company (Recruitment Team)
+   */
+  async sendJobApplicationCompany(data: {
+    fullName: string;
+    email: string;
+    phone: string;
+    portfolio?: string;
+    coverLetter: string;
+    jobTitle: string;
+  }) {
+    const htmlContent = `
+      <h2>Nouvelle Candidature : ${data.jobTitle}</h2>
+      <p><strong>Candidat :</strong> ${data.fullName}</p>
+      <p><strong>Email :</strong> ${data.email}</p>
+      <p><strong>Téléphone :</strong> ${data.phone}</p>
+      <p><strong>Portfolio/LinkedIn :</strong> ${data.portfolio || 'N/A'}</p>
+      <hr />
+      <h3>Lettre de motivation :</h3>
+      <p style="white-space: pre-wrap;">${data.coverLetter}</p>
+    `;
+
+    return this.sendEmail({
+      to: process.env.RECRUITMENT_EMAIL || 'recruitment@serenity-neo.com',
+      subject: `Candidature : ${data.fullName} - ${data.jobTitle}`,
+      html: htmlContent,
+      type: 'ALERT',
+      metadata: { role: 'CANDIDATE', job: data.jobTitle }
+    });
+  }
+
+  /**
+   * Send Application Confirmation to Candidate
+   */
+  async sendJobApplicationCandidate(email: string, name: string, jobTitle: string) {
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #5C4033;">Nous avons bien reçu votre candidature ! 🚀</h1>
+        <p>Bonjour ${name},</p>
+        <p>Merci de l'intérêt que vous portez à <strong>Serenity Neo</strong> et au poste de <strong>${jobTitle}</strong>.</p>
+        <p>Notre équipe va étudier votre profil avec attention. Si votre parcours correspond à nos besoins actuels, nous vous contacterons sous 5 jours ouvrés pour un premier échange.</p>
+        <br />
+        <p>En attendant, n'hésitez pas à nous suivre sur nos réseaux sociaux.</p>
+        <p>À très vite,</p>
+        <p><strong>L'équipe RH Serenity Neo</strong></p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject: `Candidature reçue : ${jobTitle} - Serenity Neo`,
+      html: htmlContent,
+      type: 'WELCOME', // Categorizing as welcome/transactional
+      metadata: { role: 'CANDIDATE', job: jobTitle }
+    });
+  }
 }
 
 export const resendEmailService = new ResendEmailService();

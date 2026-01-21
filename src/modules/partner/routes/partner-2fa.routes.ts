@@ -238,9 +238,13 @@ export async function partnerTwoFactorRoutes(fastify: FastifyInstance) {
             const ip = request.ip;
             const userAgent = request.headers['user-agent'] || 'unknown';
 
-            resendEmailService.sendLoginAlert(partner.email, {
+            resendEmailService.sendLoginAlert(partner.email, (partner as any).firstName || 'Partenaire', {
               ip,
               device: userAgent.substring(0, 100),
+              browser: 'Unknown',
+              os: 'Unknown',
+              provider: 'Unknown',
+              location: 'Unknown',
               time: new Date().toISOString()
             }).catch(err => request.log.error({ err }, 'Failed to send partner login alert'));
           }

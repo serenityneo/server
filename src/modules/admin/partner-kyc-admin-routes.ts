@@ -8,7 +8,7 @@
  * - View audit trail
  */
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { db } from '../../services/db';
 import { customers } from '../../db/schema';
 import { partnerKycCompletions } from '../../db/partner-operations-schema';
@@ -39,9 +39,9 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 1. GET PENDING KYC REVIEWS
   // ============================================================================
-  fastify.get<GetPendingReviewsQuery>('/pending-reviews', async (request, reply) => {
+  fastify.get('/pending-reviews', async (request: FastifyRequest, reply) => {
     try {
-      const { limit = '20', offset = '0', partnerId, customerId } = request.query;
+      const { limit = '20', offset = '0', partnerId, customerId } = request.query as GetPendingReviewsQuery['Querystring'];
 
       let query = db
         .select({
@@ -103,9 +103,9 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 2. REVIEW KYC (Approve/Reject)
   // ============================================================================
-  fastify.post<ReviewKYCBody>('/review-kyc', async (request, reply) => {
+  fastify.post('/review-kyc', async (request: FastifyRequest, reply) => {
     try {
-      const { sessionId, adminId, action, reviewNotes, rejectionReason } = request.body;
+      const { sessionId, adminId, action, reviewNotes, rejectionReason } = request.body as ReviewKYCBody['Body'];
 
       // Get the KYC completion session
       const session = await db

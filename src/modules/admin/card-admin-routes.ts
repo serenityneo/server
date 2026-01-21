@@ -9,7 +9,7 @@
  * - View all card operations with audit trail
  */
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { db } from '../../services/db';
 import { customers } from '../../db/schema';
 import { cardRequests, cardTypes } from '../../db/card-schema';
@@ -57,7 +57,7 @@ interface ProcessCancellationBody {
 }
 
 export default async function adminCardRoutes(fastify: FastifyInstance) {
-  
+
   // ============================================================================
   // 1. GET PENDING CARD REQUESTS (awaiting admin review)
   // ============================================================================
@@ -129,9 +129,9 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 2. REVIEW CARD REQUEST (Approve/Reject)
   // ============================================================================
-  fastify.post<ReviewCardRequestBody>('/review-card-request', async (request, reply) => {
+  fastify.post('/review-card-request', async (request: FastifyRequest, reply) => {
     try {
-      const { requestId, adminId, action, reviewNote, rejectionReason } = request.body;
+      const { requestId, adminId, action, reviewNote, rejectionReason } = request.body as ReviewCardRequestBody['Body'];
 
       // Get the card request
       const cardRequest = await db
@@ -201,9 +201,9 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 3. PROCESS CARD REQUEST (mark as ready/delivered)
   // ============================================================================
-  fastify.post<ProcessCardRequestBody>('/process-card-request', async (request, reply) => {
+  fastify.post('/process-card-request', async (request: FastifyRequest, reply) => {
     try {
-      const { requestId, adminId, status, cardNumber, cardExpiryDate, notes } = request.body;
+      const { requestId, adminId, status, cardNumber, cardExpiryDate, notes } = request.body as ProcessCardRequestBody['Body'];
 
       const updateData: any = {
         status,
@@ -310,9 +310,9 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 5. REVIEW CANCELLATION/RENEWAL REQUEST
   // ============================================================================
-  fastify.post<ReviewCancellationBody>('/review-cancellation-request', async (request, reply) => {
+  fastify.post('/review-cancellation-request', async (request: FastifyRequest, reply) => {
     try {
-      const { requestId, adminId, action, reviewNotes, rejectionReason, approvalNotes } = request.body;
+      const { requestId, adminId, action, reviewNotes, rejectionReason, approvalNotes } = request.body as ReviewCancellationBody['Body'];
 
       const cancellationRequest = await db
         .select()
@@ -378,9 +378,9 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 6. PROCESS CANCELLATION (mark as processed)
   // ============================================================================
-  fastify.post<ProcessCancellationBody>('/process-cancellation', async (request, reply) => {
+  fastify.post('/process-cancellation', async (request: FastifyRequest, reply) => {
     try {
-      const { requestId, adminId, processingNotes } = request.body;
+      const { requestId, adminId, processingNotes } = request.body as ProcessCancellationBody['Body'];
 
       // Update the original card request to CANCELLED
       const cancellationRequest = await db

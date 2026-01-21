@@ -6,6 +6,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
 import { contracts, contractNotifications, contractSignatories } from '../../db/contracts-schema';
+import { customers } from '../../db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 
 /**
@@ -14,7 +15,7 @@ import { eq, and, desc, sql } from 'drizzle-orm';
  */
 const requireCustomerAuth = async (request: FastifyRequest, reply: FastifyReply) => {
   const token = request.cookies['customer-token'];
-  
+
   if (!token) {
     return reply.status(401).send({
       success: false,
@@ -78,7 +79,7 @@ export default async function customerContractsRoutes(fastify: FastifyInstance) 
           interestRate: contracts.interestRate,
           documentUrl: contracts.documentUrl,
           createdAt: contracts.createdAt,
-          
+
           // Notification details
           notificationId: contractNotifications.id,
           isRead: contractNotifications.isRead,
@@ -101,7 +102,7 @@ export default async function customerContractsRoutes(fastify: FastifyInstance) 
       console.log(`[Contracts] Found ${customerContracts.length} contracts for customer ${customerId}`);
 
       // Count unread notifications
-      const unreadCount = customerContracts.filter(c => 
+      const unreadCount = customerContracts.filter(c =>
         c.notificationId && !c.isRead && !c.isSigned
       ).length;
 
@@ -128,7 +129,7 @@ export default async function customerContractsRoutes(fastify: FastifyInstance) 
       return reply.status(500).send({
         success: false,
         error: 'Failed to fetch contracts',
-        message: process.env.NODE_ENV === 'production' 
+        message: process.env.NODE_ENV === 'production'
           ? 'Une erreur est survenue lors de la récupération de vos contrats'
           : error.message
       });
@@ -196,7 +197,7 @@ export default async function customerContractsRoutes(fastify: FastifyInstance) 
       if (notification && !notification.isRead) {
         await db
           .update(contractNotifications)
-          .set({ 
+          .set({
             isRead: true,
             readAt: new Date()
           })
@@ -277,7 +278,7 @@ export default async function customerContractsRoutes(fastify: FastifyInstance) 
         return reply.status(400).send({
           success: false,
           error: 'Contract cannot be signed',
-          message: contract.status === 'ACTIVE' 
+          message: contract.status === 'ACTIVE'
             ? 'Ce contrat est déjà signé'
             : `Statut actuel: ${contract.status}`
         });
@@ -286,12 +287,12 @@ export default async function customerContractsRoutes(fastify: FastifyInstance) 
       // Get customer's KYC signature
       const [customer] = await db
         .select({
-          signaturePhotoUrl: sql<string>`signature_photo_url`,
-          firstName: sql<string>`first_name`,
-          lastName: sql<string>`last_name`
+          signaturePhotoUrl: customers.signaturePhotoUrl,
+          firstName: customers.firstName,
+          lastName: customers.lastName
         })
-        .from(sql`customers`)
-        .where(sql`id = ${customerId}`);
+        .from(customers)
+        .where(eq(customers.id, customerId));
 
       if (!customer || !customer.signaturePhotoUrl) {
         return reply.status(400).send({

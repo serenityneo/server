@@ -74,11 +74,11 @@ interface GetCardRequestsQuery {
 }
 
 export default async function partnerCardRoutes(fastify: FastifyInstance) {
-  
+
   // ============================================================================
   // 1. CREATE CARD REQUEST (Partner on behalf of customer)
   // ============================================================================
-  fastify.post<CreateCardRequestBody>('/create-request', async (request, reply) => {
+  fastify.post('/create-request', async (request: FastifyRequest, reply) => {
     try {
       const {
         partnerId,
@@ -90,7 +90,7 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
         ipAddress,
         userAgent,
         deviceInfo
-      } = request.body;
+      } = request.body as CreateCardRequestBody['Body'];
 
       // Verify customer exists
       const customer = await db
@@ -172,7 +172,7 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 2. REQUEST CARD CANCELLATION
   // ============================================================================
-  fastify.post<CancelCardRequestBody>('/cancel-request', async (request, reply) => {
+  fastify.post('/cancel-request', async (request: FastifyRequest, reply) => {
     try {
       const {
         partnerId,
@@ -186,7 +186,7 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
         ipAddress,
         userAgent,
         deviceInfo
-      } = request.body;
+      } = request.body as CancelCardRequestBody['Body'];
 
       // Verify customer exists
       const customer = await db
@@ -259,7 +259,7 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 3. REQUEST CARD RENEWAL
   // ============================================================================
-  fastify.post<RenewalRequestBody>('/renewal-request', async (request, reply) => {
+  fastify.post('/renewal-request', async (request: FastifyRequest, reply) => {
     try {
       const {
         partnerId,
@@ -273,7 +273,7 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
         ipAddress,
         userAgent,
         deviceInfo
-      } = request.body;
+      } = request.body as RenewalRequestBody['Body'];
 
       // Verify customer exists
       const customer = await db
@@ -347,9 +347,9 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 4. GET CARD REQUESTS (for partner or customer)
   // ============================================================================
-  fastify.get<GetCardRequestsQuery>('/requests', async (request, reply) => {
+  fastify.get('/requests', async (request: FastifyRequest, reply) => {
     try {
-      const { customerId, partnerId, status, limit = '20', offset = '0' } = request.query;
+      const { customerId, partnerId, status, limit = '20', offset = '0' } = request.query as GetCardRequestsQuery['Querystring'];
 
       let query = db
         .select({

@@ -55,13 +55,13 @@ interface GetCompletedKYCsRequest {
 }
 
 export default async function partnerKycRoutes(fastify: FastifyInstance) {
-  
+
   // ============================================================================
   // 1. SEARCH CUSTOMER
   // ============================================================================
-  fastify.post<SearchCustomerRequest>('/search-customer', async (request, reply) => {
+  fastify.post('/search-customer', async (request: FastifyRequest, reply) => {
     try {
-      const { partnerId, customerIdentifier } = request.body;
+      const { partnerId, customerIdentifier } = request.body as SearchCustomerRequest['Body'];
 
       if (!customerIdentifier?.trim()) {
         return reply.status(400).send({
@@ -130,9 +130,9 @@ export default async function partnerKycRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 2. REQUEST AUTHORIZATION
   // ============================================================================
-  fastify.post<RequestAuthorizationRequest>('/request-authorization', async (request, reply) => {
+  fastify.post('/request-authorization', async (request: FastifyRequest, reply) => {
     try {
-      const { partnerId, customerId, ipAddress, userAgent, deviceInfo } = request.body;
+      const { partnerId, customerId, ipAddress, userAgent, deviceInfo } = request.body as RequestAuthorizationRequest['Body'];
 
       // Check if customer exists
       const customer = await db
@@ -173,7 +173,7 @@ export default async function partnerKycRoutes(fastify: FastifyInstance) {
 
       if (activeAuthorizations.length > 0) {
         const lock = activeAuthorizations[0];
-        
+
         // Check if it's locked by a different partner
         if (lock.partnerId !== partnerId) {
           return reply.status(423).send({ // 423 Locked
@@ -258,9 +258,9 @@ export default async function partnerKycRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 3. SUBMIT KYC DATA
   // ============================================================================
-  fastify.post<SubmitKYCDataRequest>('/submit-data', async (request, reply) => {
+  fastify.post('/submit-data', async (request: FastifyRequest, reply) => {
     try {
-      const { authorizationToken, kycStep, kycData, documentsUploaded } = request.body;
+      const { authorizationToken, kycStep, kycData, documentsUploaded } = request.body as SubmitKYCDataRequest['Body'];
 
       // Verify authorization token
       const authSession = await db
@@ -343,9 +343,9 @@ export default async function partnerKycRoutes(fastify: FastifyInstance) {
   // ============================================================================
   // 4. GET COMPLETED KYCs (by partner)
   // ============================================================================
-  fastify.get<GetCompletedKYCsRequest>('/completed', async (request, reply) => {
+  fastify.get('/completed', async (request: FastifyRequest, reply) => {
     try {
-      const { partnerId, limit = '10', offset = '0' } = request.query;
+      const { partnerId, limit = '10', offset = '0' } = request.query as GetCompletedKYCsRequest['Querystring'];
 
       const completedKYCs = await db
         .select({
