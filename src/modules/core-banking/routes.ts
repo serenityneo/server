@@ -21,8 +21,8 @@ import { registerS05Routes } from './savings/routes/s05-routes';
 
 export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
     // Dynamic UI base URL from environment (PRODUCTION READY)
-    const UI_BASE_URL = process.env.UI_BASE_URL || process.env.APP_ORIGIN || 'http://localhost:3000';
-    
+    const UI_BASE_URL = process.env.UI_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
     // Register agent and agency management routes
     await fastify.register(agentsRoutes, { prefix: '/admin' });
     await fastify.register(agenciesRoutes, { prefix: '/admin' });
@@ -69,12 +69,12 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
     });
 
     // --- Customers (admin utilities) ---
-    
+
     // Get complete customer profile with all KYC data (OLD - URL param version)
     fastify.get('/customer/profile/complete/:customerId', { preHandler: requireToken }, async (request: FastifyRequest, reply: FastifyReply) => {
         const { customerId } = request.params as { customerId: string };
         const id = parseInt(customerId);
-        
+
         if (!id || Number.isNaN(id)) {
             return reply.status(400).send({ error: 'customerId invalide' });
         }
@@ -82,7 +82,7 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
         try {
             // Get customer basic data
             const [customer] = await db.select().from(customers).where(eq(customers.id, id));
-            
+
             if (!customer) {
                 return reply.status(404).send({ error: 'Client non trouvé' });
             }
@@ -102,7 +102,7 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
             // Get commune and quartier names if available
             let communeName = '';
             let quartierName = '';
-            
+
             if (step2Data?.commune_id) {
                 try {
                     const communesResponse = await fetch(`${UI_BASE_URL}/api/geography/communes`);
@@ -138,21 +138,21 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                 lastName: customer.lastName || '',
                 email: customer.email || '',
                 mobileMoneyNumber: customer.mobileMoneyNumber || '',
-                
+
                 // Account Information
                 cifCode: customer.cifCode || '',
                 accountType: 'Compte Particulier',
                 customerCategory: customer.category || 'CATEGORY_1',
                 kycStatus: customer.kycStatus || 'NOT_STARTED',
-                
+
                 // Registration Information
                 createdAt: customer.createdAt || new Date(),
-                
+
                 // Address Information (from KYC2)
                 address: step2Data?.street || customer.address || '',
                 commune: communeName,
                 quartier: quartierName,
-                
+
                 // Additional Information
                 dateOfBirth: customer.dateOfBirth || step2Data?.dateOfBirth || '',
                 placeOfBirth: customer.placeOfBirth || step2Data?.placeOfBirth || '',
@@ -167,9 +167,9 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
 
         } catch (error: any) {
             console.error('Error fetching complete profile:', error);
-            return reply.status(500).send({ 
+            return reply.status(500).send({
                 error: 'Erreur lors de la récupération du profil',
-                details: error.message 
+                details: error.message
             });
         }
     });
@@ -192,7 +192,7 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                     type: 'object',
                     properties: {
                         success: { type: 'boolean' },
-                        data: { 
+                        data: {
                             type: 'object',
                             additionalProperties: true  // Allow any properties in the data object
                         }
@@ -210,11 +210,11 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
         const { customerId } = request.body as { customerId: number };
-        
+
         console.log('[Fastify Profile] ===== START REQUEST =====');
         console.log('[Fastify Profile] Received customerId:', customerId);
         console.log('[Fastify Profile] customerId type:', typeof customerId);
-        
+
         if (!customerId || Number.isNaN(Number(customerId))) {
             console.error('[Fastify Profile] Invalid customerId:', customerId);
             return reply.status(400).send({ error: 'customerId invalide' });
@@ -225,13 +225,13 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
 
         try {
             console.log('[Fastify Profile] Querying database for customer ID:', id);
-            
+
             // Get customer basic data from Drizzle
             const [customer] = await db.select().from(customers).where(eq(customers.id, id));
-            
+
             console.log('[Fastify Profile] Database query completed');
             console.log('[Fastify Profile] Customer found:', customer ? 'YES' : 'NO');
-            
+
             if (customer) {
                 console.log('[Fastify Profile] Customer data:', {
                     id: customer.id,
@@ -244,12 +244,12 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                     createdAt: customer.createdAt
                 });
             }
-            
+
             if (!customer) {
                 console.error('[Fastify Profile] No customer found for ID:', id);
-                return reply.status(404).send({ 
-                    success: false, 
-                    error: 'Client non trouvé' 
+                return reply.status(404).send({
+                    success: false,
+                    error: 'Client non trouvé'
                 });
             }
 
@@ -262,14 +262,14 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
             const customerData: Record<string, any> = {
                 // ✅ Required fields
                 id: customer.id,
-                
+
                 // Personal Information (snake_case for auth-store compatibility)
                 first_name: customer.firstName || '',
                 last_name: customer.lastName || '',
                 email: customer.email || '',
                 mobile_money_number: customer.mobileMoneyNumber || '',
                 mobile_number: customer.mobileMoneyNumber || '', // Alternative field name
-                
+
                 // Account Information  
                 cif_code: customer.cifCode || '',
                 cifCode: customer.cifCode || '', // Also camelCase for flexibility
@@ -280,12 +280,12 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                 kycStatus: customer.kycStatus || 'NOT_STARTED', // Also camelCase
                 is_active: customer.isActive !== false, // Default true
                 status: customer.status || 'ACTIVE',
-                
+
                 // Registration Information
                 created_at: customer.createdAt || customer.accountCreationDate || new Date().toISOString(),
                 createdAt: customer.createdAt || customer.accountCreationDate || new Date().toISOString(),
             };
-            
+
             // Add optional fields only if they have values
             if (customer.address) {
                 customerData.address = customer.address;
@@ -334,21 +334,21 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                     customer: customerData
                 }
             };
-            
+
             console.log('[Fastify Profile] Response payload before send:', JSON.stringify(responsePayload, null, 2));
 
             return reply.send(responsePayload);
 
         } catch (error: any) {
             console.error('[Fastify] Error fetching complete profile:', error);
-            return reply.status(500).send({ 
+            return reply.status(500).send({
                 success: false,
                 error: 'Erreur lors de la récupération du profil',
-                details: error.message 
+                details: error.message
             });
         }
     });
-    
+
     fastify.post('/customers/create', {
         schema: {
             body: {
@@ -400,7 +400,7 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
         schema: {
             body: {
                 type: 'object',
-                properties: { 
+                properties: {
                     customerId: { type: 'number' },
                     termsAccepted: { type: 'boolean' },
                     ipAddress: { type: 'string' }
@@ -417,17 +417,17 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const { customerId, termsAccepted, ipAddress } = request.body as { 
-                customerId: number; 
-                termsAccepted?: boolean; 
-                ipAddress?: string 
+            const { customerId, termsAccepted, ipAddress } = request.body as {
+                customerId: number;
+                termsAccepted?: boolean;
+                ipAddress?: string
             };
             if (!customerId || Number.isNaN(Number(customerId))) {
                 return reply.status(400).send({ error: 'customerId manquant ou invalide' });
             }
-            
+
             const result = await accountService.initializeCustomerAccount(
-                Number(customerId), 
+                Number(customerId),
                 { termsAccepted, ipAddress }
             );
             return result;
@@ -446,10 +446,10 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                     customerId: { type: 'number' },
                     type: { type: 'string' },
                     amount: { type: 'number', minimum: 0 },
-                    currency: { type: 'string', enum: ['CDF','USD'] },
+                    currency: { type: 'string', enum: ['CDF', 'USD'] },
                     durationMonths: { type: 'number' }
                 },
-                required: ['customerId','type','amount','currency']
+                required: ['customerId', 'type', 'amount', 'currency']
             }
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -469,9 +469,9 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                 type: 'object',
                 properties: {
                     amount: { type: 'number', minimum: 0 },
-                    currency: { type: 'string', enum: ['CDF','USD'] }
+                    currency: { type: 'string', enum: ['CDF', 'USD'] }
                 },
-                required: ['amount','currency']
+                required: ['amount', 'currency']
             }
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -507,9 +507,9 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                 properties: {
                     customerId: { type: 'number' },
                     amount: { type: 'number', minimum: 0 },
-                    currency: { type: 'string', enum: ['CDF','USD'] }
+                    currency: { type: 'string', enum: ['CDF', 'USD'] }
                 },
-                required: ['customerId','amount','currency']
+                required: ['customerId', 'amount', 'currency']
             }
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -525,10 +525,10 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                 properties: {
                     accountId: { type: 'number' },
                     amount: { type: 'number', minimum: 0 },
-                    currency: { type: 'string', enum: ['CDF','USD'] },
+                    currency: { type: 'string', enum: ['CDF', 'USD'] },
                     description: { type: 'string' }
                 },
-                required: ['accountId','amount','currency']
+                required: ['accountId', 'amount', 'currency']
             }
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -543,10 +543,10 @@ export async function registerCoreBankingRoutes(fastify: FastifyInstance) {
                 properties: {
                     accountId: { type: 'number' },
                     amount: { type: 'number', minimum: 0 },
-                    currency: { type: 'string', enum: ['CDF','USD'] },
+                    currency: { type: 'string', enum: ['CDF', 'USD'] },
                     description: { type: 'string' }
                 },
-                required: ['accountId','amount','currency']
+                required: ['accountId', 'amount', 'currency']
             }
         }
     }, async (request: FastifyRequest, reply: FastifyReply) => {
