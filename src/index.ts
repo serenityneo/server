@@ -42,6 +42,9 @@ const buildApp = () => {
       const allowedOrigins = [
         'https://neo-srnt.com',
         'https://www.neo-srnt.com',
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.UI_BASE_URL,
+        process.env.APP_ORIGIN,
         process.env.FRONTEND_URL,
         // Allow localhost in development
         ...(process.env.NODE_ENV !== 'production' ? [
