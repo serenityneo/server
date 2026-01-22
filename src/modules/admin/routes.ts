@@ -330,12 +330,28 @@ export async function registerAdminRoutes(fastify: FastifyInstance) {
     try {
       const { userId, code } = request.body as { userId: number; code: string };
 
+      // Validate input parameters
+      if (!userId || !code) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Paramètres manquants. userId et code sont requis.'
+        });
+      }
+
       const result = await adminTwoFactorService.verifyTwoFactor(userId, code);
 
       const elapsed = Date.now() - startTime;
       // PERF: Only log slow requests or failures
       if (!result.valid || elapsed > 100) {
         console.log(`[2FA Route] ${result.valid ? 'OK' : 'FAIL'} ${elapsed}ms userId:${userId}`);
+      }
+
+      // Handle service-level errors (user not found, 2FA not configured, etc.)
+      if (result.error) {
+        return reply.status(400).send({
+          success: false,
+          error: result.error
+        });
       }
 
       // ✅ CRITICAL: Set httpOnly cookie on successful 2FA verification
@@ -345,17 +361,16 @@ export async function registerAdminRoutes(fastify: FastifyInstance) {
 
         reply.setCookie(AUTH_COOKIE_NAME, cookieValue, AUTH_COOKIE_OPTIONS);
 
-        reply.setCookie(AUTH_COOKIE_NAME, cookieValue, AUTH_COOKIE_OPTIONS);
-
         console.log(`[2FA Route] ✅ Secure cookie SET: ${AUTH_COOKIE_NAME}=${cookieValue}`);
 
         // ✅ SERENITY NEO: SECURITY ALERT (Async)
+        // Capture request data synchronously before async operations
+        const ip = request.ip;
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
         // Fetch user email to send alert
         adminAuthService.getAdminUser(userId).then(userResult => {
           if (userResult.success && userResult.user.email) {
-            const ip = request.ip;
-            const userAgent = request.headers['user-agent'] || 'unknown';
-
             resendEmailService.sendLoginAlert(
               userResult.user.email,
               userResult.user.username || 'Admin',

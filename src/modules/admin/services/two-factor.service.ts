@@ -166,9 +166,19 @@ export class AdminTwoFactorService {
     valid: boolean;
     failedAttempts?: number;
     diagnostics?: any;
+    error?: string;
   }> {
     try {
       const startTime = Date.now();
+
+      // Input validation
+      if (!userId || !code) {
+        console.error('[2FA] Invalid input parameters:', { userId, codeProvided: !!code });
+        return {
+          valid: false,
+          error: 'Paramètres invalides'
+        };
+      }
 
       // OPTIMIZATION 1: Query only essential fields for verification
       // This reduces DB query time from ~150ms to ~50ms
@@ -184,8 +194,21 @@ export class AdminTwoFactorService {
 
       console.log(`[2FA Debug] DB Fetch took ${Date.now() - startTime}ms`);
 
-      if (!user || !user.mfaEnabled || !user.mfaSecret) {
-        throw new Error('2FA non configuré pour ce compte');
+      // Return structured error instead of throwing
+      if (!user) {
+        console.error('[2FA] User not found:', userId);
+        return {
+          valid: false,
+          error: 'Utilisateur introuvable'
+        };
+      }
+
+      if (!user.mfaEnabled || !user.mfaSecret) {
+        console.error('[2FA] 2FA not configured for user:', userId);
+        return {
+          valid: false,
+          error: '2FA non configuré pour ce compte'
+        };
       }
 
       // Configure authenticator with INCREASED time window tolerance
@@ -298,7 +321,12 @@ export class AdminTwoFactorService {
         diagnostics
       };
     } catch (error) {
-      throw new Error(`Échec de la vérification 2FA: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      // Log the error but return a structured response instead of throwing
+      console.error('[2FA] Unexpected error during verification:', error);
+      return {
+        valid: false,
+        error: 'Une erreur est survenue lors de la vérification'
+      };
     }
   }
 
