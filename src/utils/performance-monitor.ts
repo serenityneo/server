@@ -75,7 +75,7 @@ class PerformanceMonitor {
    */
   private calculatePercentile(durations: number[], percentile: number): number {
     if (durations.length === 0) return 0;
-    
+
     const sorted = [...durations].sort((a, b) => a - b);
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
     return sorted[Math.max(0, index)];
@@ -116,7 +116,7 @@ class PerformanceMonitor {
    */
   getAllStats(): Map<string, any> {
     const result = new Map();
-    
+
     for (const [key, stats] of this.metrics.entries()) {
       const [method, route] = key.split(':');
       result.set(key, this.getRouteStats(method, route));
@@ -174,7 +174,7 @@ const monitor = new PerformanceMonitor();
 /**
  * Fastify plugin for performance monitoring
  */
-export async function performanceMonitoringPlugin(fastify: FastifyInstance, opts: any, done: () => void) {
+export async function performanceMonitoringPlugin(fastify: FastifyInstance, opts: any) {
   // Add startTime to request
   fastify.addHook('onRequest', async (request: FastifyRequest & { startTime?: number }, reply: FastifyReply) => {
     request.startTime = Date.now();
@@ -211,9 +211,9 @@ export async function performanceMonitoringPlugin(fastify: FastifyInstance, opts
   // Health check with performance data
   fastify.get('/health/performance', async (request: FastifyRequest, reply: FastifyReply) => {
     const summary = monitor.getSummary();
-    
-    const status = summary.avgLatency < 200 && summary.slowRoutes.length === 0 
-      ? 'healthy' 
+
+    const status = summary.avgLatency < 200 && summary.slowRoutes.length === 0
+      ? 'healthy'
       : 'degraded';
 
     return reply.send({
@@ -224,8 +224,6 @@ export async function performanceMonitoringPlugin(fastify: FastifyInstance, opts
       threshold: '200ms',
     });
   });
-  
-  done();
 }
 
 export { monitor as performanceMonitor };
