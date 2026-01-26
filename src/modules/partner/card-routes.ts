@@ -121,7 +121,6 @@ export default async function partnerCardRoutes(fastify: FastifyInstance) {
         .from(cardTypes)
         .where(eq(cardTypes.id, cardTypeId))
         .limit(1);
-
       if (!cardType || cardType.length === 0) {
         return reply.status(404).send({
           success: false,
