@@ -11,7 +11,7 @@
 
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { db } from '../../services/db';
-import { customers } from '../../db/schema';
+import { customers, systemErrors } from '../../db/schema';
 import { cardRequests, cardTypes } from '../../db/card-schema';
 import { cardCancellationRequests } from '../../db/partner-operations-schema';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
@@ -37,7 +37,7 @@ interface ProcessCardRequestBody {
   };
 }
 
-interface ReviewCancellationBody {
+export interface ReviewCancellationRequestBody {
   Body: {
     requestId: number;
     adminId: number;
@@ -48,13 +48,40 @@ interface ReviewCancellationBody {
   };
 }
 
-interface ProcessCancellationBody {
+export interface ProcessCancellationRequestBody {
   Body: {
     requestId: number;
     adminId: number;
     processingNotes?: string;
   };
 }
+
+const handleError = (request: FastifyRequest, reply: any, error: unknown, statusCode: number = 500) => {
+  request.log.error({ err: error }, 'Request error');
+
+  if (statusCode >= 500) {
+    db.insert(systemErrors).values({
+      message: error instanceof Error ? error.message : 'Unknown card admin error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: request.url,
+      method: request.method,
+      severity: 'CRITICAL',
+      metadata: {
+        headers: request.headers,
+        query: request.query,
+        params: request.params,
+        ip: request.ip
+      }
+    }).catch(err => request.log.error({ err }, 'Failed to log error to system_errors table'));
+  }
+
+  reply.status(statusCode).send({
+    success: false,
+    error: statusCode === 401 ? 'Non autorisé' :
+      statusCode === 404 ? 'Resource introuvable' :
+        'Une erreur est survenue. Veuillez réessayer.'
+  });
+};
 
 export default async function adminCardRoutes(fastify: FastifyInstance) {
 
@@ -118,11 +145,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la récupération des demandes de carte'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -190,11 +213,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       }
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la révision de la demande'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -234,11 +253,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors du traitement de la demande'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -299,11 +314,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la récupération des demandes'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -312,7 +323,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   fastify.post('/review-cancellation-request', async (request: FastifyRequest, reply) => {
     try {
-      const { requestId, adminId, action, reviewNotes, rejectionReason, approvalNotes } = request.body as ReviewCancellationBody['Body'];
+      const { requestId, adminId, action, reviewNotes, rejectionReason, approvalNotes } = request.body as ReviewCancellationRequestBody['Body'];
 
       const cancellationRequest = await db
         .select()
@@ -367,11 +378,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       }
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la révision'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -380,7 +387,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
   // ============================================================================
   fastify.post('/process-cancellation', async (request: FastifyRequest, reply) => {
     try {
-      const { requestId, adminId, processingNotes } = request.body as ProcessCancellationBody['Body'];
+      const { requestId, adminId, processingNotes } = request.body as ProcessCancellationRequestBody['Body'];
 
       // Update the original card request to CANCELLED
       const cancellationRequest = await db
@@ -431,11 +438,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors du traitement de l\'annulation'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -500,11 +503,7 @@ export default async function adminCardRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la récupération des opérations'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 }

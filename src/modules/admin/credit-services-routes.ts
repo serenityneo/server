@@ -1,4 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { db } from '../../db';
+import { systemErrors } from '../../db/schema';
 import { creditServicesService } from './services/credit-services.service';
 import { AUTH_COOKIE_NAME, extractUserIdFromCookie } from '../../config/auth';
 
@@ -11,43 +13,60 @@ import { AUTH_COOKIE_NAME, extractUserIdFromCookie } from '../../config/auth';
 const requireAdminAuth = async (request: FastifyRequest, reply: FastifyReply) => {
   const authHeader = String(request.headers['authorization'] || '');
   const expectedToken = process.env.ADMIN_API_TOKEN || process.env.CORE_BANKING_API_TOKEN || '';
-  
+
   if (authHeader.startsWith('Bearer ') && expectedToken) {
     const isValid = authHeader.slice(7) === expectedToken;
     if (isValid) {
       return;
     }
   }
-  
+
   const adminTokenCookie = request.cookies[AUTH_COOKIE_NAME];
-  
+
   if (adminTokenCookie) {
     const userId = extractUserIdFromCookie(adminTokenCookie);
-    
+
     if (userId === null) {
       console.error('[AdminAuth] Invalid cookie format:', adminTokenCookie);
       return reply.status(401).send({ success: false, error: 'Session invalide' });
     }
-    
+
     console.log('[AdminAuth] Cookie-based auth successful for userId:', userId);
     return;
   }
-  
+
   console.error('[AdminAuth] No valid authentication');
   reply.status(401).send({ success: false, error: 'Authentication required' });
 };
 
 const handleError = (request: FastifyRequest, reply: FastifyReply, error: unknown, statusCode: number = 500) => {
   request.log.error({ err: error }, 'Request error');
-  
+
+  // Log 500 errors to database for production observability
+  if (statusCode >= 500) {
+    db.insert(systemErrors).values({
+      message: error instanceof Error ? error.message : 'Unknown credit service error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: request.url,
+      method: request.method,
+      severity: 'CRITICAL',
+      metadata: {
+        headers: request.headers,
+        query: request.query,
+        params: request.params,
+        ip: request.ip
+      }
+    }).catch(err => request.log.error({ err }, 'Failed to log error to system_errors table'));
+  }
+
   const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
-  
+
   reply.status(statusCode).send({
     success: false,
-    error: statusCode === 401 ? 'Non autorisé' : 
-           statusCode === 404 ? 'Resource introuvable' : 
-           statusCode === 400 ? errorMessage :
-           'Une erreur est survenue. Veuillez réessayer.'
+    error: statusCode === 401 ? 'Non autorisé' :
+      statusCode === 404 ? 'Resource introuvable' :
+        statusCode === 400 ? errorMessage :
+          'Une erreur est survenue. Veuillez réessayer.'
   });
 };
 
@@ -89,7 +108,7 @@ export async function registerCreditServicesRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const services = await creditServicesService.getAvailableServices();
-      
+
       return {
         success: true,
         services
@@ -144,9 +163,9 @@ export async function registerCreditServicesRoutes(fastify: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { id } = request.params as { id: number };
-      
+
       const services = await creditServicesService.getCustomerServices(id);
-      
+
       return {
         success: true,
         services
@@ -217,13 +236,13 @@ export async function registerCreditServicesRoutes(fastify: FastifyInstance) {
         serviceCodes: string[];
         activatedByUserId: number;
       };
-      
+
       const activatedServices = await creditServicesService.activateServices(
         id,
         serviceCodes,
         activatedByUserId
       );
-      
+
       return {
         success: true,
         message: 'Services activated successfully',
@@ -276,14 +295,14 @@ export async function registerCreditServicesRoutes(fastify: FastifyInstance) {
         deactivatedByUserId: number;
         reason?: string;
       };
-      
+
       const result = await creditServicesService.deactivateService(
         id,
         serviceCode,
         deactivatedByUserId,
         reason
       );
-      
+
       return result;
     } catch (error) {
       console.error('[Admin] Error deactivating service:', error);

@@ -14,6 +14,7 @@
     "test:photo-validation": "ts-node src/testing/test-photo-validation.ts",
     "test:passport-cases": "ts-node src/testing/test-passport-cases.ts",
     "test:scoring": "ts-node src/testing/test-scoring-normalization.ts",
+    "test:2fa": "ts-node src/testing/test-admin-2fa.ts",
     "seed:admin": "ts-node src/scripts/seed-admin-users.ts",
     "seed:account-types": "tsx src/scripts/seed-account-types.ts"
   },

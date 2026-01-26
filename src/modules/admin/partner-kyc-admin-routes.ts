@@ -10,7 +10,7 @@
 
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { db } from '../../services/db';
-import { customers } from '../../db/schema';
+import { customers, systemErrors } from '../../db/schema';
 import { partnerKycCompletions } from '../../db/partner-operations-schema';
 import { eq, and, or, desc, sql } from 'drizzle-orm';
 import { resendEmailService } from '../../services/resend-email.service';
@@ -33,6 +33,33 @@ interface GetPendingReviewsQuery {
     customerId?: string;
   };
 }
+
+const handleError = (request: FastifyRequest, reply: any, error: unknown, statusCode: number = 500) => {
+  request.log.error({ err: error }, 'Request error');
+
+  if (statusCode >= 500) {
+    db.insert(systemErrors).values({
+      message: error instanceof Error ? error.message : 'Unknown partner KYC admin error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: request.url,
+      method: request.method,
+      severity: 'CRITICAL',
+      metadata: {
+        headers: request.headers,
+        query: request.query,
+        params: request.params,
+        ip: request.ip
+      }
+    }).catch(err => request.log.error({ err }, 'Failed to log error to system_errors table'));
+  }
+
+  reply.status(statusCode).send({
+    success: false,
+    error: statusCode === 401 ? 'Non autorisé' :
+      statusCode === 404 ? 'Resource introuvable' :
+        'Une erreur est survenue. Veuillez réessayer.'
+  });
+};
 
 export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
 
@@ -92,11 +119,7 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la récupération des révisions en attente'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -209,11 +232,7 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la révision du KYC'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -279,11 +298,7 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la récupération des complétions KYC'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -339,11 +354,7 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors du déverrouillage'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 
@@ -366,11 +377,7 @@ export default async function adminPartnerKycRoutes(fastify: FastifyInstance) {
       });
 
     } catch (error: any) {
-      fastify.log.error(error);
-      return reply.status(500).send({
-        success: false,
-        error: 'Erreur lors de la récupération de l\'audit trail'
-      });
+      handleError(request, reply, error, 500);
     }
   });
 }

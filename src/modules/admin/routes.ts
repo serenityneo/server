@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { db } from '../../db';
-import { customers, users, roles, customerStatus, kycStatus, quartiers, communes, postalCodes, kycDrafts, agencies, accounts, transactions, accountTypeConditions, serviceConditions, customerEligibilityStatus, customerNotifications, creditTypes } from '../../db/schema';
+import { customers, users, roles, customerStatus, kycStatus, quartiers, communes, postalCodes, kycDrafts, agencies, accounts, transactions, accountTypeConditions, serviceConditions, customerEligibilityStatus, customerNotifications, creditTypes, systemErrors } from '../../db/schema';
 import { eq, like, and, or, desc, gte, lt, ne, not, getTableColumns, sql } from 'drizzle-orm';
 import { hash } from 'argon2';
 import { authenticator } from 'otplib';
@@ -98,6 +98,24 @@ const validateAdminRole = async (userId: number): Promise<boolean> => {
 const handleError = (request: FastifyRequest, reply: FastifyReply, error: unknown, statusCode: number = 500) => {
   // Log full error server-side for debugging
   request.log.error({ err: error }, 'Request error');
+
+  // Skip DB logging for client errors (4xx) to avoid spamming
+  if (statusCode >= 500) {
+    // Fire and forget DB logging
+    db.insert(systemErrors).values({
+      message: error instanceof Error ? error.message : 'Unknown admin error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: request.url,
+      method: request.method,
+      severity: 'CRITICAL',
+      metadata: {
+        headers: request.headers,
+        query: request.query,
+        params: request.params,
+        ip: request.ip
+      }
+    }).catch(err => request.log.error({ err }, 'Failed to log error to system_errors table'));
+  }
 
   // In development, send detailed error
   const isDev = process.env.NODE_ENV === 'development';
