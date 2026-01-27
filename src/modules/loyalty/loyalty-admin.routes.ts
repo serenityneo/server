@@ -650,8 +650,43 @@ export async function registerLoyaltyAdminRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // ===== SYSTEM STATISTICS =====
-  
+  fastify.get('/admin/loyalty/customers', {
+    preHandler: requireAdminAuth,
+    schema: {
+      tags: ['Admin Loyalty'],
+      summary: 'Get loyalty customers'
+    }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const customersStats = await db.execute(sql`
+        SELECT 
+          c.id,
+          c.first_name as "firstName",
+          c.last_name as "lastName",
+          c.email,
+          c.customer_type as "accountType",
+          COALESCE(SUM(spl.points), 0) as "totalPoints",
+          COALESCE(SUM(CASE WHEN spl.type IN ('EARNED', 'BONUS') THEN spl.points ELSE 0 END), 0) as "totalEarned",
+          COALESCE(SUM(CASE WHEN spl.type = 'REDEEMED' THEN ABS(spl.points) ELSE 0 END), 0) as "totalRedeemed"
+        FROM customers c
+        LEFT JOIN serenity_points_ledger spl ON spl.customer_id = c.id
+        GROUP BY c.id
+        ORDER BY "totalPoints" DESC
+      `);
+
+      return {
+        success: true,
+        customers: (customersStats as any).rows || []
+      };
+    } catch (error) {
+      request.log.error({ err: error }, 'Error fetching loyalty customers');
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to fetch customers'
+      });
+    }
+  });
+
   /**
    * GET /admin/loyalty/stats
    * Get system-wide loyalty statistics
@@ -664,6 +699,19 @@ export async function registerLoyaltyAdminRoutes(fastify: FastifyInstance) {
     }
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      const customerCounts = await db.execute(sql`
+        SELECT 
+          COUNT(*) FILTER (WHERE customer_type = 'MEMBER') as total_members,
+          COUNT(*) FILTER (WHERE customer_type = 'PARTNER') as total_partners
+        FROM customers
+      `);
+
+      const activeRewardsCount = await db.execute(sql`
+        SELECT COUNT(*) as active_rewards
+        FROM loyalty_rewards
+        WHERE is_active = true
+      `);
+
       // Total points in circulation
       const pointsStats = await db.execute(sql`
         SELECT 
@@ -710,10 +758,19 @@ export async function registerLoyaltyAdminRoutes(fastify: FastifyInstance) {
         ORDER BY date DESC
       `);
       
+      const countsRow = (customerCounts as any).rows[0] || {};
+      const pointsRow = (pointsStats as any).rows[0] || {};
+      const rewardsRow = (activeRewardsCount as any).rows[0] || {};
+
       return {
         success: true,
         stats: {
-          points: (pointsStats as any).rows[0],
+          totalMembers: Number(countsRow.total_members || 0),
+          totalPartners: Number(countsRow.total_partners || 0),
+          totalPointsEarned: Number(pointsRow.total_earned || 0),
+          totalPointsRedeemed: Number(pointsRow.total_redeemed || 0),
+          activeRewards: Number(rewardsRow.active_rewards || 0),
+          points: pointsRow,
           redemptions: (redemptionStats as any).rows[0],
           popularRewards: (popularRewards as any).rows,
           recentActivity: (recentActivity as any).rows
